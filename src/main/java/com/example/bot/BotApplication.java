@@ -64,7 +64,7 @@ public class BotApplication {
                 .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/issues/" + issueNumber + "/labels"))
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .header("Accept", "application/vnd.github.v3+json")
-                .header("Authorization","token 527a0bcf68f54280b79e199d319ece4e99436ed6")
+                .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
                 .build();
         client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(HttpResponse::body)
