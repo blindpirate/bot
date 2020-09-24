@@ -7,7 +7,7 @@ jobs:
       - checkout
       - run:
           name: Verify
-          command: sleep 30 && grep success control.txt
+          command: grep success control.txt
 workflows:
   version: 2
   default:
