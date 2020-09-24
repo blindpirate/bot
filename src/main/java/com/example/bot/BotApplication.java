@@ -24,7 +24,9 @@ import java.util.Map;
 /**
  * 1. 当有人来提交一个PR/MR的时候，自动打上一个标签：waiting-for-review
  * 2. 如果有人review过代码，他可以在评论中打一个/lgtm
- * 此时，若该PR通过了CI，则机器人执行自动的合并
+ * 此时，若该PR通过了CI，则机器人执行自动的合并，否则，就评论，"请稍等，还没有通过CI检查"
+ * 3. 如果PR通过了CI （收到了一个CI通过的事件）
+ * 检查是否有人review过代码，如果已经review过了，执行自动的合并，否则，什么都不做。
  */
 @SpringBootApplication
 @RestController
@@ -50,6 +52,9 @@ public class BotApplication {
             case "pull_request":
                 processPullRequestEvent(body);
                 break;
+            case "status":
+                processStausEvent(body);
+                break;
             default:
                 System.out.println("丢弃不认识的event");
         }
@@ -57,13 +62,62 @@ public class BotApplication {
         return "OK";
     }
 
+    private void processStausEvent(String body) throws IOException, InterruptedException {
+        CommitStatusEvent event = objectMapper.readValue(body, CommitStatusEvent.class);
+
+        // 把仓库里的所有的PR全部列出来，如果某个PR的 headCommit == 当前构建完成的commit的话
+        // 意味着这个PR就是我们要找的PR，执行自动合并
+        if ("success".equals(event.getState())) {
+            String successCommit = event.getSha();
+            // 成功的我们才处理
+            String owner = event.getRepository().getOwner().getLogin();
+            String repo = event.getRepository().getName();
+            List<PullRequest> issues = listAllIssuesByLabels(owner, repo);
+
+            // 检查headCommit如果和当前 build 完成的commit相同的话，执行合并，否则什么都不做
+
+            issues.stream().filter(pr -> pr.getHead().getSha().equals(successCommit))
+                    .forEach(pr -> {
+                        try {
+                            mergePullRequest(owner, repo, pr.getNumber(), "commit");
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        } else {
+            // 失败的时候，发挥想象力
+        }
+    }
+
+    private List<PullRequest> listAllIssuesByLabels(String owner, String repo) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/pulls"))
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
+                .build();
+        String json = client.send(request, HttpResponse.BodyHandlers.ofString())
+                .body();
+        return objectMapper.readValue(json, new TypeReference<>() {
+        });
+    }
+
     private void processIssueCommentEvent(String body) throws IOException, InterruptedException {
         IssueCommentEvent event = objectMapper.readValue(body, IssueCommentEvent.class);
+
+        String owner = event.getRepository().getOwner().getLogin();
+        String name = event.getRepository().getName();
+        int number = event.getIssue().getNumber();
+
         if (event.getComment().getBody().contains("/lgtm")) {
+            // 有人同意进行合并了
+            // 把原先的waiting-for-review标签替换成ready-for-merge标签
             // 检查CI是不是通过了，如果通过了，执行合并
             // 1. 拿到PR上所有的commits，检查最新的那个commit上的statuses
             // 2. 如果所有的statuses都是绿色，说明通过了
 
+            removeLabel(owner, name, number, "waiting-for-review");
+
+            labelPullRequest(owner, name, number, "ready-for-merge");
             PullRequest pullRequest = getPullRequest(event.getRepository().getOwner().getLogin(),
                     event.getRepository().getName(),
                     event.getIssue().getNumber());
@@ -72,7 +126,8 @@ public class BotApplication {
 
             if (isCiPassed(event.getRepository().getOwner().getLogin(),
                     event.getRepository().getName(), headCommit)) {
-                //
+                mergePullRequest(event.getRepository().getOwner().getLogin(),
+                        event.getRepository().getName(), event.getIssue().getNumber(), "Awesome commit");
             } else {
                 comment(event.getRepository().getOwner().getLogin(),
                         event.getRepository().getName(),
@@ -112,6 +167,22 @@ public class BotApplication {
         } else {
             return statuses.stream().allMatch(status -> "success".equals(status.getState()));
         }
+    }
+
+    private void mergePullRequest(String owner, String repo, int number, String commitMessage) throws IOException, InterruptedException {
+        Map<String, Object> messageJson = new HashMap<>();
+        messageJson.put("commit_title", commitMessage);
+
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/pulls/" + number + "/merge"))
+                .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(messageJson)))
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
+                .build();
+        String json = client.send(request, HttpResponse.BodyHandlers.ofString())
+                .body();
+        System.out.println(json);
     }
 
     private List<Status> getStatuses(String owner, String repo, String commitId) throws IOException, InterruptedException {
@@ -156,6 +227,20 @@ public class BotApplication {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/issues/" + issueNumber + "/labels"))
                 .POST(HttpRequest.BodyPublishers.ofString(json))
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
+                .build();
+        client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(HttpResponse::body)
+                .thenAccept(System.out::println)
+                .join();
+
+    }
+
+    private void removeLabel(String owner, String repo, int issueNumber, String label) throws JsonProcessingException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/issues/" + issueNumber + "/label/" + label))
+                .DELETE()
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
                 .build();
