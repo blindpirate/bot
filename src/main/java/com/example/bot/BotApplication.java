@@ -166,7 +166,7 @@ public class BotApplication {
         if (statuses.isEmpty()) {
             return false;
         } else {
-            return statuses.stream().allMatch(status -> "success".equals(status.getState()));
+            return statuses.get(0).getState().equals("success");
         }
     }
 
