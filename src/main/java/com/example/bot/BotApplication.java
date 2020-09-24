@@ -53,7 +53,7 @@ public class BotApplication {
                 processPullRequestEvent(body);
                 break;
             case "status":
-                processStausEvent(body);
+                processStatusEvent(body);
                 break;
             default:
                 System.out.println("丢弃不认识的event");
@@ -62,7 +62,7 @@ public class BotApplication {
         return "OK";
     }
 
-    private void processStausEvent(String body) throws IOException, InterruptedException {
+    private void processStatusEvent(String body) throws IOException, InterruptedException {
         CommitStatusEvent event = objectMapper.readValue(body, CommitStatusEvent.class);
 
         // 把仓库里的所有的PR全部列出来，如果某个PR的 headCommit == 当前构建完成的commit的话
