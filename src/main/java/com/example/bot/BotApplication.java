@@ -77,6 +77,7 @@ public class BotApplication {
             // 检查headCommit如果和当前 build 完成的commit相同的话，执行合并，否则什么都不做
 
             issues.stream().filter(pr -> pr.getHead().getSha().equals(successCommit))
+                    .filter(pr -> pr.getLabels().stream().anyMatch(it -> it.getName().equals("ready-for-merge")))
                     .forEach(pr -> {
                         try {
                             mergePullRequest(owner, repo, pr.getNumber(), "commit");

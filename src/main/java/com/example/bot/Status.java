@@ -18,7 +18,7 @@ public class Status {
 
     private String url;
     private String avatar_url;
-    private int id;
+    private long id;
     private String node_id;
     private String state;
     private String description;
@@ -44,7 +44,7 @@ public class Status {
         this.avatar_url = avatar_url;
     }
 
-    public int getId() {
+    public long getId() {
         return id;
     }
 
@@ -139,7 +139,7 @@ public class Status {
          */
 
         private String login;
-        private int id;
+        private long id;
         private String node_id;
         private String avatar_url;
         private String gravatar_id;
@@ -165,11 +165,11 @@ public class Status {
             this.login = login;
         }
 
-        public int getId() {
+        public long getId() {
             return id;
         }
 
-        public void setId(int id) {
+        public void setId(long id) {
             this.id = id;
         }
 
