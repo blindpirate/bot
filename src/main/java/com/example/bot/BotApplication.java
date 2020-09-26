@@ -240,7 +240,7 @@ public class BotApplication {
 
     private void removeLabel(String owner, String repo, int issueNumber, String label) throws JsonProcessingException {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/issues/" + issueNumber + "/label/" + label))
+                .uri(URI.create("https://api.github.com/repos/" + owner + "/" + repo + "/issues/" + issueNumber + "/labels/" + label))
                 .DELETE()
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("Authorization", "token " + System.getenv("GITHUB_TOKEN"))
