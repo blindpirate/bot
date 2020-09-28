@@ -16,10 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 1. 当有人来提交一个PR/MR的时候，自动打上一个标签：waiting-for-review
@@ -222,7 +219,7 @@ public class BotApplication {
 
     private void labelPullRequest(String owner, String repo, int issueNumber, String label) throws JsonProcessingException {
         Map<String, Object> map = new HashMap<>();
-        map.put("labels", Arrays.asList(label));
+        map.put("labels", Collections.singletonList(label));
         String json = objectMapper.writeValueAsString(map);
 
         HttpRequest request = HttpRequest.newBuilder()
